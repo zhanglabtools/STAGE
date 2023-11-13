@@ -71,6 +71,7 @@ def STAGE(
         select_section=[1, 3, 5, 6, 8],
         gap=0.05,
         train_epoch=2000,
+        seed=1234,
         batch_size=512,
         learning_rate=1e-3,
         w_recon=0.1,
@@ -107,6 +108,13 @@ def STAGE(
             adata_simu: Generated AnnData object in simulated sections. Available when experiment = "3d_model".
             adata_sample: Down-sampled AnnData object. Available when experiment = "recovery".
     """
+
+    # set random seed
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.benchmark = True
 
     # Preparation
     if experiment=='generation' and data_type=='10x':

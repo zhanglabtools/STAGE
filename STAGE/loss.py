@@ -93,3 +93,4 @@ def sliced_wasserstein_distance(
     # for each random projection
     swd = _sliced_wasserstein_distance(encoded_samples, transformed_samples, num_projections, p, device)
     return swd
+

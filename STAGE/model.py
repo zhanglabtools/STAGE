@@ -111,7 +111,7 @@ def STAGE(
             relu: Whether the output layer of encoder and decoder activated by ReLU. Default is True.
         Return:
             adata_stage: Generated AnnData object when experiment = "generation"; Recovered AnnData object when experiment = "recovery";
-                Generated AnnData object in real sections when experiment = "3d_model"
+                Generated AnnData object in real sections when experiment = "3d_model".
             adata_simu: Generated AnnData object in simulated sections. Available when experiment = "3d_model".
             adata_sample: Down-sampled AnnData object. Available when experiment = "recovery".
     """
@@ -122,6 +122,19 @@ def STAGE(
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.benchmark = True
+
+    # First check if data_type is valid
+    valid_data_types = ['10x', 'ST', 'Slide-seq']
+    if data_type not in valid_data_types:
+        raise ValueError(f"data_type must be one of the following: {', '.join(valid_data_types)}")
+
+    # Then check if experiment is valid based on data_type
+    if data_type == '10x' and experiment not in ['generation', 'recovery']:
+        raise ValueError("When data_type is '10x', experiment must be either 'generation' or 'recovery'")
+    elif data_type == 'ST' and experiment != 'generation':
+        raise ValueError("When data_type is 'ST', experiment must be 'generation'")
+    elif data_type == 'Slide-seq' and experiment != '3d_model':
+        raise ValueError("When data_type is 'Slide-seq', experiment must be '3d_model'")
 
     # Preparation
     if experiment=='generation' and data_type=='10x':
@@ -300,7 +313,7 @@ def VGE(
         gamma=1,
         relu=True
 ):
-    """ This functions outputs generated or recovered data.
+    """ This functions outputs recovered data.
 
         Args:
             adata: AnnData object storing original data. Raw data should to be normalized. Highly variable genes should be identified.
@@ -317,10 +330,8 @@ def VGE(
             relu: Whether the output layer of encoder and decoder activated by ReLU. Default is True.
 
         Return:
-            adata_vge: Generated AnnData object when experiment = "generation"; Recovered AnnData object when experiment = "recovery";
-                Generated AnnData object in real sections when experiment = "3d_model"
-            adata_simu: Generated AnnData object in simulated sections. Available when experiment = "3d_model".
-            adata_sample: Down-sampled AnnData object. Available when experiment = "recovery".
+            adata_vge: Recovered AnnData object.
+            adata_sample: Down-sampled AnnData object.
     """
 
     # set random seed

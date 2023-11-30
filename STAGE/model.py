@@ -85,21 +85,27 @@ def STAGE(
         w_l1=0.1,
         step_size=500,
         gamma=1,
-        relu=True
+        relu=True,
+        device='cpu'
 ):
     """ This functions outputs generated or recovered data.
 
         Args:
-            adata: AnnData object storing original data. Raw data should to be normalized. Highly variable genes should be identified.
+            adata: AnnData object storing preprocessed original data.
             save_path: File path saving results including net and AnnData object.
-            data_type: Data type. Available options are: "ST", "10x", and "Slide-seq". Default is "10x".
+            data_type: Data type. Available options are: "ST", "10x", and "Slide-seq". Default is "10x". Among them,
+                the full name of "ST" is "Spatial Transcriptomics", which refers to the earliest sequencing-based
+                low-resolution spatial transcriptomics data, and "10x" is 10x Visium data, which is improved on the
+                basis of "ST" and has been commercially available on a large scale. "Slide-seq" is sequencing-based
+                high-resolution (near single-cell level) spatial transcriptomics data.
             experiment: Different tasks. Available options are: "generation" and "recovery" when data_type = "10x";
                 "generation" when data_type = "ST"; "3d_model" when data_type = "Slide-seq". Default is "generation".
             down_ratio: Down-sampling ratio. Default is 0.5.
             coord_sf: Size factor to scale spatial location. Default is 77.
-            sec_name: Item in adata.obs.columns used for choosing training sections. Available when experiment = "3d_model".
-            select_section: Index of training sections. Available when experiment = "3d_model".
+            sec_name: Item in adata.obs.columns used for choosing training sections.
+            select_section: Index of training sections.
             gap: Distance between simulated and real sections. Half of distance between adjacent real sections.
+                These parameters (sec_name, select_section, and gap) are available when experiment = "3d_model".
             train_epoch: Training epoch number. Default is 2000.
             batch_size: Batch size. Default is 512.
             learning_rate: Learning rate. Default is 1e-3.
@@ -110,7 +116,8 @@ def STAGE(
             gamma: Learning rate dampling ratio. Default is 1.
             relu: Whether the output layer of encoder and decoder activated by ReLU. Default is True.
         Return:
-            adata_stage: Generated AnnData object when experiment = "generation"; Recovered AnnData object when experiment = "recovery";
+            adata_stage: Generated AnnData object when experiment = "generation";
+                Recovered AnnData object when experiment = "recovery";
                 Generated AnnData object in real sections when experiment = "3d_model".
             adata_simu: Generated AnnData object in simulated sections. Available when experiment = "3d_model".
             adata_sample: Down-sampled AnnData object. Available when experiment = "recovery".
@@ -122,6 +129,9 @@ def STAGE(
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.benchmark = True
+
+    # Set the device for the computation
+    device = torch.device(device if torch.cuda.is_available() else 'cpu')
 
     # First check if data_type is valid
     valid_data_types = ['10x', 'ST', 'Slide-seq']
@@ -172,8 +182,7 @@ def STAGE(
     encoder.train()
     decoder.train()
 
-    if torch.cuda.is_available():
-        encoder, decoder = encoder.cuda(), decoder.cuda()
+    encoder, decoder = encoder.to(device), decoder.to(device)
 
     enc_optim = optim.Adam(encoder.parameters(), lr=learning_rate)
     dec_optim = optim.Adam(decoder.parameters(), lr=learning_rate)
@@ -196,12 +205,12 @@ def STAGE(
                 enc_optim.zero_grad()
                 dec_optim.zero_grad()
 
-                xdata, xlabel, = Variable(xdata.cuda()), Variable(xlabel.cuda())
+                xdata, xlabel, = Variable(xdata.to(device)), Variable(xlabel.to(device))
 
                 latent = encoder(xdata, relu)
                 latent = latent.view(-1, X_dim)
-                xlabel = xlabel.float().cuda()
-                latent_loss = loss1(latent, xlabel) + w_w * sliced_wasserstein_distance(latent, xlabel, 1000, device='cuda')
+                xlabel = xlabel.float().to(device)
+                latent_loss = loss1(latent, xlabel) + w_w * sliced_wasserstein_distance(latent, xlabel, 1000, device=device)
                 xrecon = decoder(latent, relu)
                 recon_loss = loss2(xrecon, xdata) + w_l1 * loss1(xrecon, xdata)
 
@@ -237,7 +246,7 @@ def STAGE(
         normed_fill_coor_df = normed_fill_coor_df / coord_sf
         normed_fill_coor_df = torch.from_numpy(np.array(normed_fill_coor_df))
         normed_fill_coor_df = normed_fill_coor_df.to(torch.float32)
-        normed_fill_coor_df = Variable(normed_fill_coor_df.cuda())
+        normed_fill_coor_df = Variable(normed_fill_coor_df.to(device))
         generate_profile = decoder(normed_fill_coor_df, relu)
         generate_profile = generate_profile.cpu().detach().numpy()
 
@@ -263,7 +272,7 @@ def STAGE(
         normed_fill_coor_df.iloc[:, range(2)] = normed_fill_coor_df.iloc[:, range(2)] / coord_sf
         normed_fill_coor_df = torch.from_numpy(np.array(normed_fill_coor_df))
         normed_fill_coor_df = normed_fill_coor_df.to(torch.float32)
-        normed_fill_coor_df = Variable(normed_fill_coor_df.cuda())
+        normed_fill_coor_df = Variable(normed_fill_coor_df.to(device))
         generate_profile = decoder(normed_fill_coor_df, relu)
         generate_profile = generate_profile.cpu().detach().numpy()
 
@@ -277,7 +286,7 @@ def STAGE(
         normed_new_coor_df.iloc[:, range(2)] = normed_new_coor_df.iloc[:, range(2)] / coord_sf
         normed_new_coor_df = torch.from_numpy(np.array(normed_new_coor_df))
         normed_new_coor_df = normed_new_coor_df.to(torch.float32)
-        normed_new_coor_df = Variable(normed_new_coor_df.cuda())
+        normed_new_coor_df = Variable(normed_new_coor_df.to(device))
         generate_profile = decoder(normed_new_coor_df, relu)
         generate_profile = generate_profile.cpu().detach().numpy()
 
@@ -311,7 +320,8 @@ def VGE(
         w_l1=0.1,
         step_size=500,
         gamma=1,
-        relu=True
+        relu=True,
+        device='cpu'
 ):
     """ This functions outputs recovered data.
 
@@ -341,6 +351,9 @@ def VGE(
         torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.benchmark = True
 
+    # Set the device for the computation
+    device = torch.device(device if torch.cuda.is_available() else 'cpu')
+
     # Preparation
     coor_df, fill_coor_df, sample_index, sample_barcode = recovery_coord(adata, down_ratio=down_ratio)
     used_gene, normed_data, adata_sample = get_data(adata, experiment='recovery', sample_index=sample_index, sample_barcode=sample_barcode)
@@ -360,8 +373,7 @@ def VGE(
 
     decoder.train()
 
-    if torch.cuda.is_available():
-        decoder = decoder.cuda()
+    decoder = decoder.to(device)
 
     dec_optim = optim.Adam(decoder.parameters(), lr=learning_rate)
 
@@ -379,7 +391,7 @@ def VGE(
 
                 dec_optim.zero_grad()
 
-                xdata, xlabel, = Variable(xdata.cuda()), Variable(xlabel.cuda())
+                xdata, xlabel, = Variable(xdata.to(device)), Variable(xlabel.to(device))
 
                 xrecon = decoder(xlabel, relu)
                 recon_loss = loss2(xrecon, xdata) + w_l1 * loss1(xrecon, xdata)
@@ -409,7 +421,7 @@ def VGE(
     normed_fill_coor_df = normed_fill_coor_df / coord_sf
     normed_fill_coor_df = torch.from_numpy(np.array(normed_fill_coor_df))
     normed_fill_coor_df = normed_fill_coor_df.to(torch.float32)
-    normed_fill_coor_df = Variable(normed_fill_coor_df.cuda())
+    normed_fill_coor_df = Variable(normed_fill_coor_df.to(device))
     generate_profile = decoder(normed_fill_coor_df, relu)
     generate_profile = generate_profile.cpu().detach().numpy()
 

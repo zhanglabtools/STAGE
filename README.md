@@ -12,20 +12,28 @@ gene modules identification, and 3D generation.
 
 ![](./STAGE_overview.png)
 
+## Prerequisites
+Before you begin, ensure you have installed Python version `3.7` or `3.8`. 
+
 ## Software dependencies
-scanpy>=1.8.2
+scanpy>=1.8.2,<=1.9.6
 
-torch>=1.8.0
+torch>=1.8.0,<=1.13.0
 
-torchvision>=0.9.0
+torchvision>=0.9.0,<=1.14.0
+
+In addition, if you choose to use GPU, the versions of torch and torchvision 
+need to be compatible with the version of CUDA.
 
 ## Installation
-After download STAGE from Github, you can install STAGE via
+After download STAGE from [Github](https://github.com/zhanglabtools/STAGE), you can install STAGE via
 ```
 cd STAGE-main
 python setup.py build
 python setup.py install
 ```
+In addition, if you choose to install STAGE in a virtual environment, 
+you must install the imageio and igraph packages first. 
 
 ## Tutorials
 The following are detailed tutorials. Some related additional files can be downloaded [here](https://drive.google.com/drive/folders/1yLMezhggFhhyKMqc23MUDm8hh2y8jPpx).

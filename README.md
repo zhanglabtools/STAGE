@@ -13,7 +13,7 @@ gene modules identification, and 3D generation.
 ![](./STAGE_overview.png)
 
 ## Prerequisites
-Before you begin, ensure you have installed Python version `3.7` or `3.8`. 
+It is recommended to use a Python version between `3.7` and `3.9`.
 
 ## Software dependencies
 scanpy>=1.8.2,<=1.9.6

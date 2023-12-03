@@ -20,7 +20,7 @@ scanpy>=1.8.2,<=1.9.6
 
 torch>=1.8.0,<=1.13.0
 
-torchvision>=0.9.0,<=1.14.0
+torchvision>=0.9.0,<=1.14.1
 
 In addition, if you choose to use GPU, the versions of torch and torchvision 
 need to be compatible with the version of CUDA.

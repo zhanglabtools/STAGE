@@ -9,7 +9,8 @@ loss2 = nn.MSELoss()
 
 def rand_projections(
         embedding_dim,
-        num_samples=50
+        num_samples=50,
+        device='cpu'
 ):
     """This function generates `num_samples` random samples from the latent space's unit sphere.
 
@@ -23,7 +24,7 @@ def rand_projections(
     projections = [w / np.sqrt((w**2).sum())  # L2 normalization
                    for w in np.random.normal(size=(num_samples, embedding_dim))]
     projections = np.asarray(projections)
-    return torch.from_numpy(projections).type(torch.FloatTensor).cuda()
+    return torch.from_numpy(projections).type(torch.FloatTensor).to(device)
 
 
 def _sliced_wasserstein_distance(

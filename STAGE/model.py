@@ -93,13 +93,14 @@ def STAGE(
         Args:
             adata: AnnData object storing preprocessed original data.
             save_path: File path saving results including net and AnnData object.
-            data_type: Data type. Available options are: "ST", "10x", and "Slide-seq". Default is "10x". Among them,
-                the full name of "ST" is "Spatial Transcriptomics", which refers to the earliest sequencing-based
-                low-resolution spatial transcriptomics data, and "10x" is 10x Visium data, which is improved on the
-                basis of "ST" and has been commercially available on a large scale. "Slide-seq" is sequencing-based
-                high-resolution (near single-cell level) spatial transcriptomics data.
+            data_type: Data type. Available options are: "ST_KTH", "10x", and "Slide-seq". Default is "10x". Among them,
+                "ST_KTH" is "Spatial Transcriptomics" data developed by KTH Royal Institute of Technology, which refers
+                to the earliest sequencing-based low-resolution ST data,
+                "10x" is 10x Visium data, which is improved on the basis of "ST_KTH" and has been commercially available
+                on a large scale, and
+                "Slide-seq" is sequencing-based high-resolution (near single-cell level) ST data.
             experiment: Different tasks. Available options are: "generation" and "recovery" when data_type = "10x";
-                "generation" when data_type = "ST"; "3d_model" when data_type = "Slide-seq". Default is "generation".
+                "generation" when data_type = "ST_KTH"; "3d_model" when data_type = "Slide-seq". Default is "generation".
             down_ratio: Down-sampling ratio. Default is 0.5.
             coord_sf: Size factor to scale spatial location. Default is 77.
             sec_name: Item in adata.obs.columns used for choosing training sections.
@@ -134,17 +135,17 @@ def STAGE(
     device = torch.device(device if torch.cuda.is_available() else 'cpu')
 
     # First check if data_type is valid
-    valid_data_types = ['10x', 'ST', 'Slide-seq']
+    valid_data_types = ['10x', 'ST_KTH', 'Slide-seq']
     if data_type not in valid_data_types:
-        raise ValueError(f"data_type must be one of the following: {', '.join(valid_data_types)}")
+        raise ValueError(f"Valid data type must be one of the following: {', '.join(valid_data_types)}")
 
     # Then check if experiment is valid based on data_type
     if data_type == '10x' and experiment not in ['generation', 'recovery']:
-        raise ValueError("When data_type is '10x', experiment must be either 'generation' or 'recovery'")
-    elif data_type == 'ST' and experiment != 'generation':
-        raise ValueError("When data_type is 'ST', experiment must be 'generation'")
+        raise ValueError("Experiments designed for 10x Visium data are only 'generation' and 'recovery'.")
+    elif data_type == 'ST_KTH' and experiment != 'generation':
+        raise ValueError("Experiment designed for Spatial Transcriptomics data is only 'generation'.")
     elif data_type == 'Slide-seq' and experiment != '3d_model':
-        raise ValueError("When data_type is 'Slide-seq', experiment must be '3d_model'")
+        raise ValueError("Experiment designed for Slide-seq data is only '3d_model'.")
 
     # Preparation
     if experiment=='generation' and data_type=='10x':
@@ -153,7 +154,7 @@ def STAGE(
     elif experiment=='recovery' and data_type=='10x':
         coor_df, fill_coor_df, sample_index, sample_barcode = recovery_coord(adata, down_ratio=down_ratio)
         used_gene, normed_data, adata_sample = get_data(adata, experiment=experiment, sample_index=sample_index, sample_barcode=sample_barcode)
-    elif experiment=='generation' and data_type=='ST':
+    elif experiment=='generation' and data_type=='ST_KTH':
         coor_df, fill_coor_df = generation_coord_ST(adata)
         used_gene, normed_data = get_data(adata, experiment=experiment)
     elif experiment=='3d_model' and data_type=='Slide-seq':

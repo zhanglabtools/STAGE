@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-
+import os
 
 def setToArray(
         setInput,
@@ -128,7 +128,8 @@ def generation_coord_ST(
 def recovery_coord(
         adata,
         name='coord',
-        down_ratio=0.5
+        down_ratio=0.5,
+        path1='input_data',
 ):
     """ This function generates spatial location for Spatial Transcriptomics data.
         Args:
@@ -148,6 +149,18 @@ def recovery_coord(
     sample_index = setToArray(set(sample_index))
     sample_coor_df = coor_df.iloc[sample_index]
     sample_barcode = coor_df.index[sample_index]
+
+    del_index = setToArray(set(range(coor_df.shape[0])) - set(sample_index))
+
+    if not os.path.isdir(path1):
+        os.mkdir(path1)
+
+    np.savetxt(path1+"/all_barcode.txt", adata.obs.index, fmt='%s')
+    np.savetxt(path1+"/sample_index.txt", sample_index, fmt='%s')
+    np.savetxt(path1+"/del_index.txt", del_index, fmt='%s')
+    np.savetxt(path1+"/sample_barcode.txt", coor_df.index[sample_index], fmt='%s')
+    np.savetxt(path1+"/del_barcode.txt", coor_df.index[del_index], fmt='%s')
+
     return sample_coor_df, coor_df, sample_index, sample_barcode
 
 

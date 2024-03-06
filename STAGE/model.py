@@ -86,7 +86,8 @@ def STAGE(
         step_size=500,
         gamma=1,
         relu=True,
-        device='cpu'
+        device='cpu',
+        path1='file_tmp',
 ):
     """ This functions outputs generated or recovered data.
 
@@ -147,13 +148,18 @@ def STAGE(
     elif data_type == 'Slide-seq' and experiment != '3d_model':
         raise ValueError("Experiment designed for Slide-seq data is only '3d_model'.")
 
+    if not os.path.isdir(save_path):
+        os.mkdir(save_path)
+    if not os.path.isdir(path1):
+        os.mkdir(path1)
+
     # Preparation
     if experiment=='generation' and data_type=='10x':
         coor_df, fill_coor_df = generation_coord_10x(adata)
         used_gene, normed_data = get_data(adata, experiment=experiment)
     elif experiment=='recovery' and data_type=='10x':
-        coor_df, fill_coor_df, sample_index, sample_barcode = recovery_coord(adata, down_ratio=down_ratio)
-        used_gene, normed_data, adata_sample = get_data(adata, experiment=experiment, sample_index=sample_index, sample_barcode=sample_barcode)
+        coor_df, fill_coor_df, sample_index, sample_barcode = recovery_coord(adata, down_ratio=down_ratio, path1=path1)
+        used_gene, normed_data, adata_sample = get_data(adata, experiment=experiment, sample_index=sample_index, sample_barcode=sample_barcode, path1=path1)
     elif experiment=='generation' and data_type=='ST_KTH':
         coor_df, fill_coor_df = generation_coord_ST(adata)
         used_gene, normed_data = get_data(adata, experiment=experiment)
@@ -161,6 +167,16 @@ def STAGE(
         used_gene, normed_data = get_data(adata, experiment=experiment, sec_name=sec_name, select_section=select_section)
         coor_df, fill_coor_df, new_coor_df, all_coor_df = Slide_seq_coord_3d(
             adata,sec_name=sec_name,select_section=select_section,gap=gap)
+
+    if experiment == 'recovery':
+        normed_coor_df = coor_df.copy()
+        normed_coor_df = normed_coor_df / coord_sf
+
+        normed_fill_coor_df = fill_coor_df.copy()
+        normed_fill_coor_df = normed_fill_coor_df / coord_sf
+
+        normed_coor_df.to_csv(path1+"/coord.txt", header=0, index=0)
+        normed_fill_coor_df.to_csv(path1+"/fill_coord.txt", header=0, index=0)
 
     if experiment == 'generation' or experiment == 'recovery':
         normed_coor_df = coor_df / coord_sf
@@ -174,9 +190,6 @@ def STAGE(
     train_loader = DataLoader(transformed_dataset, batch_size=batch_size, shuffle=True, num_workers=0, drop_last=False)
 
     # Training process
-    if not os.path.isdir(save_path):
-        os.mkdir(save_path)
-
     gene_number = normed_data.shape[0]
     encoder, decoder = Encoder(gene_number, X_dim), Decoder(gene_number, X_dim)
 
@@ -215,7 +228,7 @@ def STAGE(
                 xrecon = decoder(latent, relu)
                 recon_loss = loss2(xrecon, xdata) + w_l1 * loss1(xrecon, xdata)
 
-                total_loss = latent_loss + w_recon * recon_loss
+                total_loss = 0.1 * latent_loss + 0.1 * w_recon * recon_loss
 
                 total_loss.backward()
 
@@ -251,6 +264,12 @@ def STAGE(
         generate_profile = decoder(normed_fill_coor_df, relu)
         generate_profile = generate_profile.cpu().detach().numpy()
 
+        if not relu:
+            generate_profile = np.clip(generate_profile, a_min=0, a_max=None)
+
+        if experiment=='recovery':
+            np.savetxt(save_path+"/fill_data.txt", generate_profile)
+
         adata_stage = sc.AnnData(generate_profile)
         adata_stage.obsm["coord"] = fill_coor_df.to_numpy()
         adata_stage.var.index = used_gene
@@ -277,6 +296,9 @@ def STAGE(
         generate_profile = decoder(normed_fill_coor_df, relu)
         generate_profile = generate_profile.cpu().detach().numpy()
 
+        if not relu:
+            generate_profile = np.clip(generate_profile, a_min=0, a_max=None)
+
         adata_stage = sc.AnnData(generate_profile)
         adata_stage.obsm["coord"] = fill_coor_df.to_numpy()
         adata_stage.var.index = used_gene
@@ -290,6 +312,9 @@ def STAGE(
         normed_new_coor_df = Variable(normed_new_coor_df.to(device))
         generate_profile = decoder(normed_new_coor_df, relu)
         generate_profile = generate_profile.cpu().detach().numpy()
+
+        if not relu:
+            generate_profile = np.clip(generate_profile, a_min=0, a_max=None)
 
         adata_simu = sc.AnnData(generate_profile)
         adata_simu.obsm["coord"] = new_coor_df.to_numpy()
@@ -308,10 +333,11 @@ def STAGE(
 
         return adata_stage, adata_simu, adata_all
 
+
 def VGE(
         adata,
         save_path='./VGE_results',
-        down_ratio=0.5,
+        #down_ratio=0.5,
         coord_sf=77,
         train_epoch=2000,
         seed=1234,
@@ -322,7 +348,8 @@ def VGE(
         step_size=500,
         gamma=1,
         relu=True,
-        device='cpu'
+        device='cpu',
+        path1='file_tmp',
 ):
     """ This functions outputs recovered data.
 
@@ -356,10 +383,21 @@ def VGE(
     device = torch.device(device if torch.cuda.is_available() else 'cpu')
 
     # Preparation
-    coor_df, fill_coor_df, sample_index, sample_barcode = recovery_coord(adata, down_ratio=down_ratio)
+    #coor_df, fill_coor_df, sample_index, sample_barcode = recovery_coord(adata, down_ratio=down_ratio)
+    normed_coor_df=pd.read_csv(path1 + "/coord.txt", header=None, index_col=None, sep=",")
+    normed_fill_coor_df=pd.read_csv(path1 + "/fill_coord.txt", header=None, index_col=None, sep=",")
+    coor_df = normed_coor_df.copy()
+    coor_df = coor_df * coord_sf
+    fill_coor_df = normed_fill_coor_df.copy()
+    fill_coor_df = fill_coor_df * coord_sf
+    s = pd.read_csv(path1 + '/sample_index.txt', header=None, index_col=None)
+    sample_index = np.array(s[0])
+    #sample_barcode = coor_df.index[sample_index]
+    s = pd.read_csv(path1 + '/sample_barcode.txt', header=None, index_col=None)
+    sample_barcode = np.array(s[0])
     used_gene, normed_data, adata_sample = get_data(adata, experiment='recovery', sample_index=sample_index, sample_barcode=sample_barcode)
 
-    normed_coor_df = coor_df / coord_sf
+    #normed_coor_df = coor_df / coord_sf
     X_dim = 2
 
     transformed_dataset = MyDataset(normed_data=normed_data, coor_df=normed_coor_df, transform=transforms.Compose([ToTensor()]))
@@ -397,7 +435,7 @@ def VGE(
                 xrecon = decoder(xlabel, relu)
                 recon_loss = loss2(xrecon, xdata) + w_l1 * loss1(xrecon, xdata)
 
-                total_loss = w_recon * recon_loss
+                total_loss = 0.1 * w_recon * recon_loss
 
                 total_loss.backward()
 
@@ -418,15 +456,21 @@ def VGE(
     decoder.eval()
 
     # Get recovered data
-    normed_fill_coor_df = fill_coor_df.copy()
-    normed_fill_coor_df = normed_fill_coor_df / coord_sf
+    #normed_fill_coor_df = fill_coor_df.copy()
+    #normed_fill_coor_df = normed_fill_coor_df / coord_sf
     normed_fill_coor_df = torch.from_numpy(np.array(normed_fill_coor_df))
     normed_fill_coor_df = normed_fill_coor_df.to(torch.float32)
     normed_fill_coor_df = Variable(normed_fill_coor_df.to(device))
     generate_profile = decoder(normed_fill_coor_df, relu)
     generate_profile = generate_profile.cpu().detach().numpy()
 
+    if not relu:
+        generate_profile = np.clip(generate_profile, a_min=0, a_max=None)
+
     adata_vge = sc.AnnData(generate_profile)
+
+
+
     adata_vge.obsm["coord"] = fill_coor_df.to_numpy()
     adata_vge.var.index = used_gene
 

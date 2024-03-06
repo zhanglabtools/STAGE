@@ -5,7 +5,7 @@ import scanpy as sc
 import scipy.sparse as sp
 from torchvision import datasets, transforms
 from torch.utils.data import Dataset, DataLoader
-
+import os
 
 def get_data(
         adata,
@@ -13,7 +13,8 @@ def get_data(
         sample_index=None,
         sample_barcode=None,
         sec_name='section',
-        select_section=[1, 3, 5, 6, 8]
+        select_section=[1, 3, 5, 6, 8],
+        path1='input_data',
 ):
     """ Get training data used to generation from original AnnData object
 
@@ -32,6 +33,11 @@ def get_data(
     """
     used_gene = np.array(adata.var.index[adata.var.highly_variable])
 
+    if not os.path.isdir(path1):
+        os.mkdir(path1)
+
+    np.savetxt(path1+"/used_gene.txt", used_gene, fmt='%s')
+
     if experiment=='generation':
         normed_data = sp.coo_matrix(adata.X[:, adata.var.highly_variable].T).todense()
         normed_data = pd.DataFrame(normed_data)
@@ -39,6 +45,11 @@ def get_data(
     elif experiment=='recovery':
         adata_sample = adata[sample_barcode]
         normed_data = sp.coo_matrix(adata.X[sample_index][:, adata.var.highly_variable].T).todense()
+        np.savetxt(path1+"/normed_data.txt", normed_data)
+
+        normed_data_all = sp.coo_matrix(adata.X[:, adata.var.highly_variable].T).todense()
+        np.savetxt(path1+"/normed_data_all.txt", normed_data_all)
+
         normed_data = pd.DataFrame(normed_data)
         return used_gene, normed_data, adata_sample
     elif experiment=='3d_model':

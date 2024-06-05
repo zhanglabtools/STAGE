@@ -5,8 +5,8 @@ with open("README.rst", "r", encoding="utf-8") as f:
 
 setup(
     name = "STAGE",
-    version = "1.0.0",
-    description = "STAGE is a tool for high-density generation of spatially resolved transcriptomics with an auto-encoder-based generator",
+    version = "1.0.1",
+    description = "High-density generation of spatial transcriptomics with STAGE",
     url = "https://github.com/zhanglabtools/STAGE",
     author = "Shang Li",
     author_email = "lishang@amss.ac.cn",

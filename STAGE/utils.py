@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import os
+from scipy.spatial.distance import cdist
 
 def setToArray(
         setInput,
@@ -198,6 +199,46 @@ def Slide_seq_coord_3d(
     all_coor_df = pd.concat([fill_coor_df, new_coor_df])
 
     return coor_df, fill_coor_df, new_coor_df, all_coor_df
+
+
+def generate_coord_random(adata,
+                          name='coord',
+                          expand_time=5,
+                          rad_off=1
+                          ):
+    """ This function generates spatial location for arbitrary ST data.
+        Args:
+            adata: AnnData object storing original data.
+            name: Item in adata.obsm used for get spatial location. Default is "coord".
+            expand_time: Expansion ratio of the original spots. Default is 5.
+            rad_off: The threshold used to filter out spots outside the tissue section after expanding the spot.
+                Default is 1 (10x Visium).
+        Return:
+            coor_df: Spatial location of dowm-sampled data.
+            fill_coor_df: Spatial location of recovered data.
+    """
+    coor_df = pd.DataFrame(adata.obsm[name])
+    coor_df.index = adata.obs.index
+    coor_df.columns = ["x", "y"]
+
+    expand_number = np.ceil(adata.shape[0] * (expand_time - 1) * 4 / np.pi).astype(int)
+
+    fill_coor_df = pd.DataFrame(0, index=range(expand_number), columns=["x", "y"])
+    fill_coor_df["x"] = np.min(coor_df["x"]) + (np.max(coor_df["x"]) - np.min(coor_df["x"])) * np.random.random(
+        expand_number)
+    fill_coor_df["y"] = np.min(coor_df["y"]) + (np.max(coor_df["y"]) - np.min(coor_df["y"])) * np.random.random(
+        expand_number)
+
+    dist_with_spot = cdist(fill_coor_df, coor_df)
+    min_dist = np.min(dist_with_spot, axis=1)
+    fill_coor_df = fill_coor_df[min_dist <= rad_off]
+
+    fill_coor_df = pd.concat([coor_df, fill_coor_df], 0)
+    fill_coor_df.index = range(fill_coor_df.shape[0])
+
+    fill_coor_df.columns = ["x", "y"]
+    return coor_df, fill_coor_df
+
 
 
 def show_train_hist(

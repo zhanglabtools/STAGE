@@ -76,6 +76,8 @@ def STAGE(
         sec_name='section',
         select_section=[1, 3, 5, 6, 8],
         gap=0.05,
+        expand_time=5,
+        rad_off=1,
         train_epoch=2000,
         seed=1234,
         batch_size=512,
@@ -94,22 +96,34 @@ def STAGE(
         Args:
             adata: AnnData object storing preprocessed original data.
             save_path: File path saving results including net and AnnData object.
-            data_type: Data type. Available options are: "ST_KTH", "10x", and "Slide-seq". Default is "10x". Among them,
+            data_type: Data type.
+                Available options are: "ST_KTH", "10x", "Slide-seq", and "arbitrary". Default is "10x". Among them,
                 "ST_KTH" is "Spatial Transcriptomics" data developed by KTH Royal Institute of Technology, which refers
                 to the earliest sequencing-based low-resolution ST data,
                 "10x" is 10x Visium data, which is improved on the basis of "ST_KTH" and has been commercially available
                 on a large scale, and
                 "Slide-seq" is sequencing-based high-resolution (near single-cell level) ST data.
-            experiment: Different tasks. Available options are: "generation" and "recovery" when data_type = "10x";
-                "generation" when data_type = "ST_KTH"; "3d_model" when data_type = "Slide-seq". Default is "generation".
+            experiment: Different tasks.
+                Available options are:
+                    "generation" and "recovery" when data_type = "10x";
+                    "generation" when data_type = "ST_KTH";
+                    "3d_model" when data_type = "Slide-seq";
+                    "higher_res" when data_type = "arbitraty".
+                Default is "generation".
             down_ratio: Down-sampling ratio. Default is 0.5.
-            coord_sf: Size factor to scale spatial location. Default is 77.
+            coord_sf: Size factor to scale spatial location. It is recommended to scale the maximum value of the
+                coordinates to around 1. Default is 77 (appropriately applied for 10x Visium).
             sec_name: Item in adata.obs.columns used for choosing training sections.
             select_section: Index of training sections.
             gap: Distance between simulated and real sections. Half of distance between adjacent real sections.
                 These parameters (sec_name, select_section, and gap) are available when experiment = "3d_model".
+            expand_time: Expansion ratio of the original spots. Default is 5 (appropriately applied for 10x Visium).
+                When applied to high-resolution ST data, it is recommended to decrease this parameter appropriately.
+            rad_off: The threshold used to filter out spots outside the tissue after expanding the spot.
+                It is recommended to be 0.01*coord_sf. Default is 1 (appropriately applied for 10x Visium).
             train_epoch: Training epoch number. Default is 2000.
-            batch_size: Batch size. Default is 512.
+            batch_size: Batch size. Default is 512. When applied to high-resolution ST data, it is recommended to
+                increase this parameter appropriately.
             learning_rate: Learning rate. Default is 1e-3.
             w_recon: Weight of reconstruction loss in total loss. Default is 0.1.
             w_w: Weight of W loss in latent loss. Default is 0.1.
@@ -136,7 +150,7 @@ def STAGE(
     device = torch.device(device if torch.cuda.is_available() else 'cpu')
 
     # First check if data_type is valid
-    valid_data_types = ['10x', 'ST_KTH', 'Slide-seq']
+    valid_data_types = ['10x', 'ST_KTH', 'Slide-seq', 'arbitrary']
     if data_type not in valid_data_types:
         raise ValueError(f"Valid data type must be one of the following: {', '.join(valid_data_types)}")
 
@@ -167,6 +181,10 @@ def STAGE(
         used_gene, normed_data = get_data(adata, experiment=experiment, sec_name=sec_name, select_section=select_section)
         coor_df, fill_coor_df, new_coor_df, all_coor_df = Slide_seq_coord_3d(
             adata,sec_name=sec_name,select_section=select_section,gap=gap)
+    elif experiment=='higher_res' and data_type=='arbitrary':
+        coor_df, fill_coor_df = generate_coord_random(adata, expand_time=expand_time, rad_off=rad_off)
+        used_gene, normed_data = get_data(adata, experiment=experiment)
+
 
     if experiment == 'recovery':
         normed_coor_df = coor_df.copy()
@@ -178,11 +196,12 @@ def STAGE(
         normed_coor_df.to_csv(path1+"/coord.txt", header=0, index=0)
         normed_fill_coor_df.to_csv(path1+"/fill_coord.txt", header=0, index=0)
 
-    if experiment == 'generation' or experiment == 'recovery':
-        normed_coor_df = coor_df / coord_sf
+    if experiment == 'generation' or experiment == 'higher_res':
+        normed_coor_df = coor_df.copy()
+        normed_coor_df = normed_coor_df / coord_sf
         X_dim = 2
     elif experiment == '3d_model' and data_type == 'Slide-seq':
-        normed_coor_df = coor_df
+        normed_coor_df = coor_df.copy()
         normed_coor_df.iloc[:, range(2)] = normed_coor_df.iloc[:, range(2)] / coord_sf
         X_dim = 3
 
@@ -255,7 +274,7 @@ def STAGE(
     decoder.eval()
 
     # Get generated or recovered data
-    if experiment=='generation' or experiment=='recovery':
+    if experiment=='generation' or experiment=='recovery' or experiment=='higher_res':
         normed_fill_coor_df = fill_coor_df.copy()
         normed_fill_coor_df = normed_fill_coor_df / coord_sf
         normed_fill_coor_df = torch.from_numpy(np.array(normed_fill_coor_df))
@@ -276,7 +295,7 @@ def STAGE(
 
         adata.write(save_path + '/original_data.h5ad')
 
-        if experiment=='generation':
+        if experiment=='generation' or experiment=='higher_res':
             adata_stage.write(save_path + '/generated_data.h5ad')
             return adata_stage
         elif experiment=='recovery' and data_type=='10x':

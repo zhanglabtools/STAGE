@@ -38,7 +38,7 @@ def get_data(
 
     np.savetxt(path1+"/used_gene.txt", used_gene, fmt='%s')
 
-    if experiment=='generation':
+    if experiment=='generation' or experiment=='higher_res':
         normed_data = sp.coo_matrix(adata.X[:, adata.var.highly_variable].T).todense()
         normed_data = pd.DataFrame(normed_data)
         return used_gene, normed_data
